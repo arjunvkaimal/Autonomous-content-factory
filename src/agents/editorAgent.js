@@ -5,11 +5,12 @@ export async function runEditor() {
 
   console.log("Editor running...");
 
-  // basic validation
   if (!drafts || !drafts.blog) {
-    console.log("Invalid content → fallback");
+    console.log("Invalid drafts");
     return;
   }
 
   setFinal(drafts);
+
+  console.log("FINAL:", drafts);
 }

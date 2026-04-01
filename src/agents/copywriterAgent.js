@@ -5,34 +5,60 @@ export async function runCopywriter() {
 
   console.log("Copywriter running...");
 
+  // helper to clean text
+  const cleanText = (text) => {
+    if (!text) return "";
+    return text.trim().replace(/[.,]+$/, "");
+  };
+
+  const audience = cleanText(factSheet.audience) || "users";
+
+  // features (limit + clean)
+  const featuresText = factSheet.features
+    .slice(0, 5)
+    .map((f) => "- " + cleanText(f))
+    .join("\n");
+
+  // specs (no dash, clean format)
+  const specsText = Object.entries(factSheet.specs)
+    .map(([k, v]) => `${k}: ${cleanText(v)}`)
+    .join("\n");
+
+  // blog content
   const blog = `
-Introducing a powerful solution designed for ${factSheet.audience || "modern users"}.
+${cleanText(factSheet.valueProposition) || "A powerful new solution"}.
 
-Key Features:
-${factSheet.features.map(f => "- " + f).join("\n")}
+Designed for ${audience}, this product delivers:
 
-Specifications:
-${Object.entries(factSheet.specs)
-  .map(([k, v]) => `${k}: ${v}`)
-  .join("\n")}
+${featuresText}
 
-Why it matters:
-${factSheet.valueProposition || "Enhances productivity and efficiency."}
+With specifications such as:
+${specsText}
+
+This solution enhances efficiency usability and performance.
 `;
 
+  // social thread
   const socialThread = [
-    "🚀 New Product Launch!",
-    `Built for ${factSheet.audience || "everyone"}`,
-    "Packed with smart features",
+    "New product launched",
+    `Built for ${audience}`,
+    "Smart features included",
     "Upgrade your experience today",
   ];
 
+  // email
   const emailTeaser = `
 Discover a smarter way to improve your workflow.
-Designed for ${factSheet.audience || "users"}.
+Designed for ${audience}.
 `;
 
   setDrafts({
+    blog,
+    socialThread,
+    emailTeaser,
+  });
+
+  console.log("DRAFTS:", {
     blog,
     socialThread,
     emailTeaser,

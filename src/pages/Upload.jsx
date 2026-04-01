@@ -14,12 +14,17 @@ export default function Upload() {
 
     const text = await file.text();
     setSourceText(text);
+
+    console.log("SOURCE TEXT:", text);
   };
 
   const startPipeline = async () => {
+    console.log("Starting pipeline...");
+
     await runResearcher();
     await runCopywriter();
     await runEditor();
+
     navigate("/review");
   };
 

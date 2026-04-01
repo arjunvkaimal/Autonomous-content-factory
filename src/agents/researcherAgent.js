@@ -10,39 +10,74 @@ export async function runResearcher() {
   let features = [];
   let specs = {};
   let audience = "";
-  let valueProposition = [];
+  let valueProposition = "";
 
-  lines.forEach((line) => {
+  let currentSection = "";
+
+  const scoreLine = (line) => {
+    let score = 0;
     const lower = line.toLowerCase();
 
-    // feature detection
-    if (lower.includes("feature") || lower.includes("-")) {
-      features.push(line.replace("-", "").trim());
+    if (lower.includes("ai")) score += 3;
+    if (lower.includes("smart")) score += 2;
+    if (line.length > 20) score += 1;
+
+    return score;
+  };
+
+  lines.forEach((line) => {
+    const clean = line.trim();
+    const lower = clean.toLowerCase();
+
+    if (!clean) return;
+
+    // detect sections
+    if (lower.includes("feature")) currentSection = "features";
+    else if (lower.includes("spec")) currentSection = "specs";
+    else if (lower.includes("audience")) currentSection = "audience";
+    else if (lower.includes("value")) currentSection = "value";
+
+    // extract based on section
+    else if (currentSection === "features" && clean.startsWith("-")) {
+      features.push(clean.replace("-", "").trim());
     }
 
-    // specs detection (key: value)
-    if (line.includes(":")) {
+    else if (currentSection === "specs" && clean.includes(":")) {
+      let line = clean.replace("-", "").trim();   
+
       const [key, value] = line.split(":");
+
       if (key && value) {
         specs[key.trim()] = value.trim();
       }
     }
 
-    // audience detection
-    if (lower.includes("audience") || lower.includes("users")) {
-      audience = line;
+    else if (currentSection === "audience") {
+      audience = clean;
     }
 
-    // value proposition
-    if (lower.includes("value") || lower.includes("benefit")) {
-      valueProposition.push(line);
+    else if (currentSection === "value") {
+      valueProposition = clean;
     }
   });
+
+  // apply scoring
+  features = features
+    .map((f) => ({ text: f, score: scoreLine(f) }))
+    .sort((a, b) => b.score - a.score)
+    .map((f) => f.text);
 
   setFactSheet({
     features,
     specs,
     audience,
-    valueProposition: valueProposition.join(" "),
+    valueProposition,
+  });
+
+  console.log("FACT SHEET:", {
+    features,
+    specs,
+    audience,
+    valueProposition,
   });
 }
