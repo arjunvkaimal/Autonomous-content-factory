@@ -10,32 +10,22 @@ export default function Upload() {
 
   const handleFile = async (e) => {
     const file = e.target.files[0];
-    if (!file) return;
-
     const text = await file.text();
     setSourceText(text);
-
-    console.log("SOURCE TEXT:", text);
   };
 
-  const startPipeline = async () => {
-    console.log("Starting pipeline...");
-
+  const start = async () => {
     await runResearcher();
     await runCopywriter();
     await runEditor();
-
     navigate("/review");
   };
 
   return (
-    <div style={{ color: "white", padding: "20px" }}>
-      <h1>Upload Document</h1>
-
+    <div style={{ color: "white", padding: 20 }}>
       <input type="file" onChange={handleFile} />
       <br /><br />
-
-      <button onClick={startPipeline}>Start</button>
+      <button onClick={start}>Start</button>
     </div>
   );
 }
