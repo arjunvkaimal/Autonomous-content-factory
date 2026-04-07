@@ -34,7 +34,7 @@ export async function runResearcher() {
 
     const valueProposition =
       aiData.valueProposition &&
-      !aiData.valueProposition.toLowerCase().includes("general utility")
+        !aiData.valueProposition.toLowerCase().includes("general utility")
         ? aiData.valueProposition
         : localData.valueProposition;
 
@@ -123,11 +123,11 @@ function parseDocument(text) {
   const primaryMatch = audienceSection.match(/Primary[:.]?\s*(.+)/i);
   const audience = primaryMatch
     ? clean(primaryMatch[1].split("\n")[0])
-    : "small and medium businesses";
+    : "Unknown Audience";
 
   const valueSection = extractSection(text, "VALUE PROPOSITION", "VALUE PROP");
   const valueProposition =
-    clean(valueSection.split("\n")[0]) || "A powerful, integrated solution";
+    clean(valueSection.split("\n")[0]) || "Unknown Value Proposition";
 
   return { features, specs, audience, valueProposition };
 }

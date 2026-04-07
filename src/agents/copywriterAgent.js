@@ -8,8 +8,9 @@ export async function runCopywriter() {
 
   const clean = (t) => t ? t.trim().replace(/[.,]+$/, "") : "";
 
-  const fullAudience = clean(factSheet.audience) || "small business owners";
-  const valueProposition = clean(factSheet.valueProposition) || "A powerful new product";
+  const safeFactSheet = factSheet && typeof factSheet === "object" ? factSheet : {};
+  const fullAudience = clean(safeFactSheet.audience) || "Unknown Audience";
+  const valueProposition = clean(safeFactSheet.valueProposition) || "Unknown Value Proposition";
 
   // Shorten audience to a concise label for copy
   function shortenAudience(str) {
@@ -31,16 +32,29 @@ export async function runCopywriter() {
   const audience = shortenAudience(fullAudience);
   addLog("Copywriter", `Audience label: "${audience}"`, "data");
 
-  const featuresList = (factSheet.features || []).slice(0, 5);
+  const featuresList = (Array.isArray(safeFactSheet.features) ? safeFactSheet.features : []).slice(0, 5);
   const featuresText = featuresList.map((f) => "- " + clean(f)).join("\n");
-  const topFeature = clean(featuresList[0]) || "smart performance";
-  const secondFeature = clean(featuresList[1]) || "seamless integration";
+  const topFeature = clean(featuresList[0]) || "";
+  const secondFeature = clean(featuresList[1]) || "";
 
-  const specsData = factSheet.specs && Object.keys(factSheet.specs).length ? factSheet.specs : {};
+  const specsData =
+    safeFactSheet.specs && typeof safeFactSheet.specs === "object" && Object.keys(safeFactSheet.specs).length
+      ? safeFactSheet.specs
+      : {};
   const specsText = Object.entries(specsData).map(([k, v]) => `• ${k}: ${clean(v)}`).join("\n");
 
+  const isInvalid = valueProposition.includes("Unknown Value Proposition") && featuresList.length === 0;
+
   addLog("Copywriter", "Writing blog post...", "info");
-  const blog = `${valueProposition}.
+  
+  let blog, socialThread, emailTeaser;
+
+  if (isInvalid) {
+    blog = "Please provide a valid product brief with real features to generate a blog post.";
+    socialThread = ["Please provide a valid product brief to generate a social thread."];
+    emailTeaser = "Please provide a valid product brief to generate this email teaser.";
+  } else {
+    blog = `${valueProposition}.
 
 Designed for ${audience}, this is a next-generation solution built to solve real problems at scale.
 
@@ -53,25 +67,19 @@ Every detail has been engineered to deliver reliability and real-world impact �
 The result: a smarter, more capable tool that fits naturally into your workflow and actually makes a difference.
 `;
 
-  addLog("Copywriter", "Blog post complete ✓", "success");
-  addLog("Copywriter", "Writing social thread...", "info");
+    socialThread = [
+      `🚀 Introducing the next big thing for ${audience}.`,
+      `💡 ${valueProposition}.`,
+      featuresText.length > 0
+        ? `✅ Standout feature: ${topFeature}.`
+        : `✅ Engineered for real-world performance.`,
+      secondFeature
+        ? `⚡ Also: ${secondFeature}.`
+        : `⚡ Thoughtfully designed for daily use.`,
+      `🎯 Built for ${audience} who demand more. Time to upgrade.`,
+    ];
 
-  const socialThread = [
-    `🚀 Introducing the next big thing for ${audience}.`,
-    `💡 ${valueProposition}.`,
-    featuresText.length > 0
-      ? `✅ Standout feature: ${topFeature}.`
-      : `✅ Engineered for real-world performance.`,
-    secondFeature
-      ? `⚡ Also: ${secondFeature}.`
-      : `⚡ Thoughtfully designed for daily use.`,
-    `🎯 Built for ${audience} who demand more. Time to upgrade.`,
-  ];
-
-  addLog("Copywriter", `Social thread: ${socialThread.length} posts ✓`, "success");
-  addLog("Copywriter", "Writing email teaser...", "info");
-
-  const emailTeaser = `Subject: Something new for ${audience} — you'll want to see this.
+    emailTeaser = `Subject: Something new for ${audience} — you'll want to see this.
 
 Hi there,
 
@@ -84,7 +92,10 @@ ${topFeature ? `Here's what sets it apart: ${topFeature}.` : ""}
 Ready to see it in action? Hit reply or visit our site to learn more.
 
 — The Team`;
+  }
 
+  addLog("Copywriter", "Blog post complete ✓", "success");
+  addLog("Copywriter", `Social thread: ${socialThread.length} posts ✓`, "success");
   addLog("Copywriter", "Email teaser complete ✓", "success");
 
   setDrafts({ blog, socialThread, emailTeaser });

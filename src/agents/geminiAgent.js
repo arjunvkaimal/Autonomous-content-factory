@@ -1,19 +1,28 @@
 export async function runGemini(sourceText) {
   const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+  if (!API_KEY) {
+    throw new Error("Missing Gemini API key");
+  }
 
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${API_KEY}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                text: `You are a strict JSON extraction engine. Extract product data from the marketing brief below.
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+  let res;
+  try {
+    res = await fetch(
+      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${API_KEY}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        signal: controller.signal,
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: `You are a strict JSON extraction engine. Extract product data from the marketing brief below.
 
 Return ONLY valid JSON. No markdown. No explanation. No code fences. Just raw JSON.
 
@@ -38,13 +47,21 @@ DO NOT include any of these as features or values:
 
 TEXT:
 ${sourceText}`,
-              },
-            ],
-          },
-        ],
-      }),
+                },
+              ],
+            },
+          ],
+        }),
+      }
+    );
+  } catch (err) {
+    if (err.name === "AbortError") {
+      throw new Error("Gemini request timed out");
     }
-  );
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   // Check HTTP status first
   if (!res.ok) {
@@ -113,7 +130,7 @@ ${sourceText}`,
   return {
     features: validFeatures,
     specs: parsed.specs || {},
-    audience: !isNoise(cleanedAudience) ? cleanedAudience : "general users",
-    valueProposition: !isNoise(cleanedValue) ? cleanedValue : "General utility",
+    audience: !isNoise(cleanedAudience) ? cleanedAudience : "Unknown Audience",
+    valueProposition: !isNoise(cleanedValue) ? cleanedValue : "Unknown Value Proposition",
   };
 }

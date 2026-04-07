@@ -1,52 +1,72 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import useStore from "../store/pipelineStore";
 import { runResearcher } from "../agents/researcherAgent";
 import { runCopywriter } from "../agents/copywriterAgent";
 import { runEditor } from "../agents/editorAgent";
 
-// ── Agent metadata ─────────────────────────────────────────────────────────
+/* ─── Spring physics ──────────────────────────────────────────────────── */
+const SPRING = { type: "spring", stiffness: 300, damping: 25 };
+const SPRING_SNAP = { type: "spring", stiffness: 380, damping: 28 };
+
+/* ─── Icon components (defined before STEPS to avoid hoisting issues) ─── */
+function ResearchIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+  );
+}
+function CopyIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+    </svg>
+  );
+}
+function EditIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12"/>
+    </svg>
+  );
+}
+
+const STEP_ICONS = { researcher: ResearchIcon, copywriter: CopyIcon, editor: EditIcon };
+
+/* ─── Agent metadata ──────────────────────────────────────────────────── */
 const STEPS = [
   {
     key: "researcher",
     label: "Researcher",
-    icon: "🔍",
+    num: "01",
     description: "Parses the document and extracts structured product data",
-    color: "#6366f1",
   },
   {
     key: "copywriter",
     label: "Copywriter",
-    icon: "✍️",
+    num: "02",
     description: "Writes blog post, social thread, and email teaser",
-    color: "#8b5cf6",
   },
   {
     key: "editor",
     label: "Editor",
-    icon: "✅",
-    description: "Reviews and approves all generated content",
-    color: "#a78bfa",
+    num: "03",
+    description: "Reviews, refines and approves all generated content",
   },
 ];
 
-// ── Log type colors ────────────────────────────────────────────────────────
 const LOG_COLORS = {
-  info: "#94a3b8",
-  success: "#34d399",
-  warn: "#fbbf24",
-  error: "#f87171",
-  data: "#60a5fa",
+  info:    "var(--text-secondary)",
+  success: "var(--success)",
+  warn:    "var(--warn)",
+  error:   "var(--error)",
+  data:    "var(--info)",
 };
+const LOG_PREFIX = { info: "›", success: "✓", warn: "⚠", error: "✗", data: "·" };
 
-const LOG_PREFIXES = {
-  info: "›",
-  success: "✓",
-  warn: "⚠",
-  error: "✗",
-  data: "·",
-};
-
+/* ─── Page ────────────────────────────────────────────────────────────── */
 export default function AgentRoom() {
   const navigate = useNavigate();
   const logRef = useRef(null);
@@ -56,445 +76,557 @@ export default function AgentRoom() {
   const { stepStatuses, agentLogs, pipelineStatus, setPipelineStatus, resetPipeline } =
     useStore();
 
-  // Auto-scroll logs
   useEffect(() => {
-    if (logRef.current) {
-      logRef.current.scrollTop = logRef.current.scrollHeight;
-    }
+    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [agentLogs]);
 
-  // Run pipeline on mount
   useEffect(() => {
     if (hasStarted.current) return;
     hasStarted.current = true;
-
     resetPipeline();
 
     async function runPipeline() {
       setPipelineStatus("running");
-
       try {
         await runResearcher();
         await runCopywriter();
         await runEditor();
         setPipelineStatus("done");
-
-        // countdown to navigate
         let c = 3;
         setCountdown(c);
         const timer = setInterval(() => {
           c -= 1;
           setCountdown(c);
-          if (c <= 0) {
-            clearInterval(timer);
-            navigate("/review");
-          }
+          if (c <= 0) { clearInterval(timer); navigate("/review"); }
         }, 1000);
       } catch (err) {
         setPipelineStatus("error");
         useStore.getState().addLog("System", `Pipeline failed: ${err.message}`, "error");
       }
     }
-
     runPipeline();
   }, []);
 
-  const totalSteps = STEPS.length;
-  const doneSteps = STEPS.filter((s) => stepStatuses[s.key] === "done").length;
-  const progressPct = (doneSteps / totalSteps) * 100;
+  const doneCount = STEPS.filter((s) => stepStatuses[s.key] === "done").length;
+  const progressPct = (doneCount / STEPS.length) * 100;
+  const activeStep = STEPS.find((s) => stepStatuses[s.key] === "running");
 
   return (
-    <div style={styles.page}>
-      {/* Header */}
-      <div style={styles.header}>
-        <div>
-          <h1 style={styles.title}>Agent Room</h1>
-          <p style={styles.subtitle}>
-            {pipelineStatus === "idle" && "Initialising pipeline..."}
-            {pipelineStatus === "running" && "Pipeline running — agents are working"}
-            {pipelineStatus === "done" &&
-              `Pipeline complete! Navigating to review in ${countdown}s...`}
-            {pipelineStatus === "error" && "Pipeline encountered an error"}
-          </p>
+    <div style={S.page}>
+
+      {/* ── Top bar ─────────────────────────────────────────────────── */}
+      <motion.header
+        style={S.topbar}
+        initial={{ opacity: 0, y: -16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={SPRING}
+      >
+        <div style={S.topbarLeft}>
+          <span style={S.topbarEye}>
+            <span style={{ ...S.eyebrowDot, background: pipelineStatus === "done" ? "var(--success)" : pipelineStatus === "error" ? "var(--error)" : "var(--accent)", animation: pipelineStatus === "running" ? "pulse-dot 1.4s ease-in-out infinite" : "none" }} />
+          </span>
+          <span style={S.topbarTitle}>Mission Control</span>
+          <span style={S.topbarSep}>/</span>
+          <span style={S.topbarSub}>
+            {pipelineStatus === "idle"    && "Initialising pipeline…"}
+            {pipelineStatus === "running" && (activeStep ? `${activeStep.label} is working` : "Running…")}
+            {pipelineStatus === "done"    && `Complete — navigating in ${countdown}s`}
+            {pipelineStatus === "error"   && "Pipeline encountered an error"}
+          </span>
         </div>
-        <StatusBadge status={pipelineStatus} />
-      </div>
+        <PipelineBadge status={pipelineStatus} />
+      </motion.header>
 
-      {/* Progress bar */}
-      <div style={styles.progressTrack}>
-        <div
+      {/* ── Progress bar ────────────────────────────────────────────── */}
+      <div style={S.progressTrack}>
+        <motion.div
           style={{
-            ...styles.progressBar,
-            width: `${progressPct}%`,
-            background:
-              pipelineStatus === "done"
-                ? "linear-gradient(90deg, #34d399, #6ee7b7)"
-                : "linear-gradient(90deg, #6366f1, #a78bfa)",
+            ...S.progressFill,
+            background: pipelineStatus === "done"
+              ? "var(--success)"
+              : "var(--accent)",
           }}
+          initial={{ width: "0%" }}
+          animate={{ width: `${progressPct}%` }}
+          transition={{ type: "spring", stiffness: 80, damping: 20 }}
         />
+        {/* shimmer only while running */}
+        {pipelineStatus === "running" && (
+          <div style={S.progressShimmer} />
+        )}
       </div>
 
-      {/* Step cards */}
-      <div style={styles.stepsRow}>
-        {STEPS.map((step, idx) => {
-          const status = stepStatuses[step.key];
-          return (
-            <StepCard
+      {/* ── Bento grid ──────────────────────────────────────────────── */}
+      <main style={S.bentoGrid}>
+
+        {/* Agent cards — 3 stacked in left col */}
+        <section style={S.agentCol}>
+          <div style={S.sectionLabel}>AGENTS</div>
+          {STEPS.map((step, idx) => (
+            <AgentCard
               key={step.key}
               step={step}
-              status={status}
-              stepNumber={idx + 1}
+              status={stepStatuses[step.key]}
+              idx={idx}
             />
-          );
-        })}
-      </div>
-
-      {/* Pipeline connector line behind cards */}
-      <div style={styles.connectorWrapper}>
-        {STEPS.slice(0, -1).map((step, idx) => {
-          const nextStep = STEPS[idx + 1];
-          const active =
-            stepStatuses[step.key] === "done" ||
-            stepStatuses[nextStep.key] !== "pending";
-          return (
-            <div
-              key={idx}
-              style={{
-                ...styles.connector,
-                background: active ? "#6366f1" : "rgba(255,255,255,0.1)",
-              }}
-            />
-          );
-        })}
-      </div>
-
-      {/* Log terminal */}
-      <div style={styles.terminal}>
-        <div style={styles.terminalHeader}>
-          <span style={styles.terminalDot("#f87171")} />
-          <span style={styles.terminalDot("#fbbf24")} />
-          <span style={styles.terminalDot("#34d399")} />
-          <span style={styles.terminalTitle}>Execution Logs</span>
-          <span style={styles.logCount}>{agentLogs.length} entries</span>
-        </div>
-        <div ref={logRef} style={styles.terminalBody}>
-          {agentLogs.length === 0 && (
-            <div style={{ color: "#475569", fontStyle: "italic" }}>
-              Waiting for agents to start...
-            </div>
-          )}
-          {agentLogs.map((log) => (
-            <div key={log.id} style={styles.logLine}>
-              <span style={styles.logTime}>{log.time}</span>
-              <span
-                style={{
-                  ...styles.logAgent,
-                  color: STEPS.find((s) => s.label === log.agent)?.color || "#94a3b8",
-                }}
-              >
-                [{log.agent}]
-              </span>
-              <span style={{ color: LOG_COLORS[log.type] || "#94a3b8" }}>
-                {LOG_PREFIXES[log.type]} {log.message}
-              </span>
-            </div>
           ))}
-          {pipelineStatus === "running" && (
-            <div style={styles.cursor}>▋</div>
-          )}
-        </div>
-      </div>
+        </section>
+
+        {/* Right col — metrics + terminal */}
+        <section style={S.rightCol}>
+
+          {/* Metrics row */}
+          <div style={S.metricsRow}>
+            <MetricCell
+              label="Agents"
+              value={`${doneCount}/${STEPS.length}`}
+              sub="completed"
+            />
+            <MetricCell
+              label="Logs"
+              value={agentLogs.length}
+              sub="entries"
+              accent={agentLogs.length > 0}
+            />
+            <MetricCell
+              label="Status"
+              value={pipelineStatus.toUpperCase()}
+              sub="pipeline"
+              accent={pipelineStatus === "done"}
+            />
+          </div>
+
+          {/* Terminal */}
+          <div style={S.terminal}>
+            <div style={S.termHeader}>
+              <div style={S.termDots}>
+                <span style={{ ...S.dot, background: "var(--error)" }} />
+                <span style={{ ...S.dot, background: "var(--warn)" }} />
+                <span style={{ ...S.dot, background: "var(--success)" }} />
+              </div>
+              <span style={S.termTitle}>EXECUTION LOG</span>
+              <span style={S.termCount}>{agentLogs.length} entries</span>
+            </div>
+            <div ref={logRef} style={S.termBody}>
+              {agentLogs.length === 0 && (
+                <span style={{ color: "var(--text-muted)", fontStyle: "italic" }}>
+                  Waiting for agents to start…
+                </span>
+              )}
+              <AnimatePresence initial={false}>
+                {agentLogs.map((log) => (
+                  <motion.div
+                    key={log.id}
+                    style={S.logLine}
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={SPRING_SNAP}
+                  >
+                    <span style={S.logTime}>{log.time}</span>
+                    <span style={S.logAgent}>[{log.agent}]</span>
+                    <span style={{ color: LOG_COLORS[log.type] || "var(--text-secondary)" }}>
+                      {LOG_PREFIX[log.type]} {log.message}
+                    </span>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+              {pipelineStatus === "running" && (
+                <span style={S.cursor}>▋</span>
+              )}
+            </div>
+          </div>
+        </section>
+      </main>
     </div>
   );
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────
-
-function StepCard({ step, status, stepNumber }) {
+/* ─── AgentCard ──────────────────────────────────────────────────────── */
+function AgentCard({ step, status, idx }) {
   const isRunning = status === "running";
-  const isDone = status === "done";
-  const isError = status === "error";
+  const isDone    = status === "done";
+  const isError   = status === "error";
+  const isPending = !isRunning && !isDone && !isError;
 
   return (
-    <div
+    <motion.div
       style={{
-        ...styles.card,
-        borderColor: isDone
-          ? "#34d399"
-          : isRunning
-          ? step.color
-          : isError
-          ? "#f87171"
-          : "rgba(255,255,255,0.08)",
-        boxShadow: isRunning
-          ? `0 0 24px ${step.color}44`
+        ...S.agentCard,
+        borderColor: isRunning
+          ? "var(--accent)"
           : isDone
-          ? "0 0 16px #34d39922"
-          : "none",
+          ? "var(--success)"
+          : isError
+          ? "var(--error)"
+          : "var(--border-mid)",
+        boxShadow: isRunning
+          ? "var(--shadow-accent)"
+          : isDone
+          ? "3px 3px 0 rgba(61,255,160,0.25)"
+          : "var(--shadow-hard)",
       }}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ ...SPRING, delay: idx * 0.06 }}
     >
-      {/* Step number */}
-      <div style={{ ...styles.stepNum, background: isRunning || isDone ? step.color : "#1e293b" }}>
-        {isDone ? "✓" : stepNumber}
+      {/* Number + icon row */}
+      <div style={S.cardTopRow}>
+        <span style={{ ...S.cardNum, color: isRunning ? "var(--accent)" : isDone ? "var(--success)" : "var(--text-muted)" }}>
+          {step.num}
+        </span>
+        <span style={{ ...S.cardIcon, opacity: isPending ? 0.3 : 1, color: isRunning ? "var(--accent)" : isDone ? "var(--success)" : "var(--text-primary)" }}>
+          {(() => { const Icon = STEP_ICONS[step.key]; return Icon ? <Icon /> : null; })()}
+        </span>
+        <StatusPill status={status} />
       </div>
 
-      {/* Icon + label */}
-      <div style={{ ...styles.cardIcon, filter: isRunning ? "none" : isDone ? "none" : "grayscale(0.6) opacity(0.5)" }}>
-        {step.icon}
+      <div style={S.cardBody}>
+        <div style={S.cardLabel}>{step.label}</div>
+        <div style={S.cardDesc}>{step.description}</div>
       </div>
-      <div style={styles.cardLabel}>{step.label}</div>
-      <div style={styles.cardDesc}>{step.description}</div>
 
-      {/* Status badge */}
-      <div
-        style={{
-          ...styles.statusChip,
-          background: isDone
-            ? "#34d39922"
-            : isRunning
-            ? `${step.color}22`
-            : isError
-            ? "#f8717122"
-            : "rgba(255,255,255,0.04)",
-          color: isDone
-            ? "#34d399"
-            : isRunning
-            ? step.color
-            : isError
-            ? "#f87171"
-            : "#475569",
-          border: `1px solid ${isDone ? "#34d39944" : isRunning ? `${step.color}44` : "transparent"}`,
-        }}
-      >
-        {isRunning && <PulsingDot color={step.color} />}
-        {isDone && "Done"}
-        {isError && "Error"}
-        {!isRunning && !isDone && !isError && "Pending"}
+      {/* Running bar */}
+      {isRunning && (
+        <motion.div
+          style={S.runBar}
+          initial={{ scaleX: 0 }}
+          animate={{ scaleX: 1 }}
+          transition={{ duration: 2, repeat: Infinity, repeatType: "reverse", ease: "easeInOut" }}
+        />
+      )}
+      {isDone && <div style={S.doneBar} />}
+    </motion.div>
+  );
+}
+
+/* ─── StatusPill ─────────────────────────────────────────────────────── */
+function StatusPill({ status }) {
+  const cfg = {
+    pending: { label: "PENDING", color: "var(--text-muted)", border: "var(--border-mid)", bg: "transparent" },
+    running: { label: "ACTIVE",  color: "var(--accent)",     border: "var(--accent-border)", bg: "var(--accent-dim)" },
+    done:    { label: "DONE",    color: "var(--success)",    border: "rgba(61,255,160,0.3)", bg: "rgba(61,255,160,0.08)" },
+    error:   { label: "ERROR",   color: "var(--error)",      border: "rgba(255,82,82,0.3)",  bg: "rgba(255,82,82,0.08)" },
+  }[status] || {};
+
+  return (
+    <motion.span
+      style={{ ...S.pill, color: cfg.color, borderColor: cfg.border, background: cfg.bg }}
+      layout
+      transition={SPRING}
+    >
+      {status === "running" && (
+        <span style={{ display: "inline-block", width: 5, height: 5, borderRadius: "50%", background: "var(--accent)", marginRight: 5, animation: "pulse-dot 1.2s ease-in-out infinite" }} />
+      )}
+      {cfg.label}
+    </motion.span>
+  );
+}
+
+/* ─── MetricCell ─────────────────────────────────────────────────────── */
+function MetricCell({ label, value, sub, accent }) {
+  return (
+    <div style={S.metricCell}>
+      <div style={{ ...S.metricValue, color: accent ? "var(--accent)" : "var(--text-primary)" }}>
+        {value}
       </div>
+      <div style={S.metricLabel}>{label}</div>
+      <div style={S.metricSub}>{sub}</div>
     </div>
   );
 }
 
-function PulsingDot({ color }) {
+/* ─── PipelineBadge ──────────────────────────────────────────────────── */
+function PipelineBadge({ status }) {
+  const cfg = {
+    idle:    { label: "IDLE",     color: "var(--text-muted)", border: "var(--border-mid)" },
+    running: { label: "RUNNING",  color: "var(--accent)",     border: "var(--accent-border)" },
+    done:    { label: "COMPLETE", color: "var(--success)",    border: "rgba(61,255,160,0.3)" },
+    error:   { label: "ERROR",    color: "var(--error)",      border: "rgba(255,82,82,0.3)" },
+  }[status] || {};
+
   return (
-    <span
-      style={{
-        display: "inline-block",
-        width: 7,
-        height: 7,
-        borderRadius: "50%",
-        background: color,
-        marginRight: 6,
-        animation: "pulse 1.2s ease-in-out infinite",
-      }}
-    />
+    <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: "0.1em", color: cfg.color, border: `1px solid ${cfg.border}`, padding: "4px 10px" }}>
+      {cfg.label}
+    </span>
   );
 }
 
-function StatusBadge({ status }) {
-  const map = {
-    idle: { label: "Idle", color: "#475569" },
-    running: { label: "Running", color: "#6366f1" },
-    done: { label: "Complete", color: "#34d399" },
-    error: { label: "Error", color: "#f87171" },
-  };
-  const s = map[status] || map.idle;
-  return (
-    <div
-      style={{
-        padding: "6px 14px",
-        borderRadius: 20,
-        background: `${s.color}18`,
-        border: `1px solid ${s.color}44`,
-        color: s.color,
-        fontSize: 13,
-        fontWeight: 600,
-        display: "flex",
-        alignItems: "center",
-        gap: 6,
-      }}
-    >
-      {status === "running" && <PulsingDot color={s.color} />}
-      {s.label}
-    </div>
-  );
-}
 
-// ── Styles ────────────────────────────────────────────────────────────────
-const styles = {
+
+/* ─── Styles ──────────────────────────────────────────────────────────── */
+const S = {
   page: {
-    minHeight: "100vh",
-    background: "linear-gradient(135deg, #0f0f1a 0%, #0d1117 60%, #0f172a 100%)",
-    padding: "32px 28px",
-    fontFamily: "'Inter', sans-serif",
-    color: "#f1f5f9",
-    boxSizing: "border-box",
-  },
-  header: {
+    minHeight: "100svh",
+    background: "var(--bg)",
     display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 24,
-  },
-  title: {
-    margin: 0,
-    fontSize: 26,
-    fontWeight: 700,
-    background: "linear-gradient(90deg, #a78bfa, #6366f1)",
-    WebkitBackgroundClip: "text",
-    WebkitTextFillColor: "transparent",
-    letterSpacing: "-0.5px",
-  },
-  subtitle: {
-    margin: "6px 0 0",
-    color: "#64748b",
-    fontSize: 14,
-  },
-  progressTrack: {
-    height: 4,
-    background: "rgba(255,255,255,0.06)",
-    borderRadius: 99,
-    overflow: "hidden",
-    marginBottom: 28,
-  },
-  progressBar: {
-    height: "100%",
-    borderRadius: 99,
-    transition: "width 0.6s ease",
-  },
-  stepsRow: {
-    display: "grid",
-    gridTemplateColumns: "repeat(3, 1fr)",
-    gap: 16,
-    marginBottom: 28,
+    flexDirection: "column",
     position: "relative",
+    zIndex: 1,
+    fontFamily: "var(--font-body)",
+    color: "var(--text-primary)",
   },
-  connectorWrapper: {
-    display: "none", // handled with card borders instead
+
+  /* Topbar */
+  topbar: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "0 28px",
+    height: 52,
+    borderBottom: "1px solid var(--border)",
+    background: "var(--bg-surface)",
+    flexShrink: 0,
   },
-  connector: {
-    flex: 1,
+  topbarLeft: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+  },
+  topbarEye: { display: "flex", alignItems: "center" },
+  eyebrowDot: {
+    display: "inline-block",
+    width: 7,
+    height: 7,
+    borderRadius: "50%",
+  },
+  topbarTitle: {
+    fontFamily: "var(--font-heading)",
+    fontSize: 13,
+    fontWeight: 600,
+    letterSpacing: "-0.01em",
+    color: "var(--text-primary)",
+  },
+  topbarSep: { color: "var(--text-muted)", fontSize: 13 },
+  topbarSub: {
+    fontFamily: "var(--font-mono)",
+    fontSize: 11,
+    color: "var(--text-muted)",
+  },
+
+  /* Progress */
+  progressTrack: {
     height: 2,
-    transition: "background 0.4s",
+    background: "var(--bg-overlay)",
+    position: "relative",
+    overflow: "hidden",
+    flexShrink: 0,
   },
-  card: {
-    background: "rgba(255,255,255,0.03)",
-    border: "1px solid rgba(255,255,255,0.08)",
-    borderRadius: 16,
+  progressFill: {
+    height: "100%",
+    transformOrigin: "left",
+  },
+  progressShimmer: {
+    position: "absolute",
+    inset: 0,
+    background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.15) 50%, transparent 100%)",
+    animation: "shimmer-bar 1.6s linear infinite",
+    width: "25%",
+  },
+
+  /* Bento grid */
+  bentoGrid: {
+    flex: 1,
+    display: "grid",
+    gridTemplateColumns: "340px 1fr",
+    gap: 0,
+    overflow: "hidden",
+  },
+
+  /* Agent column */
+  agentCol: {
+    borderRight: "1px solid var(--border)",
     padding: "24px 20px",
     display: "flex",
     flexDirection: "column",
-    alignItems: "center",
-    textAlign: "center",
-    gap: 8,
-    transition: "border-color 0.4s, box-shadow 0.4s",
-    position: "relative",
+    gap: 12,
+    overflowY: "auto",
   },
-  stepNum: {
-    position: "absolute",
-    top: -12,
-    left: "50%",
-    transform: "translateX(-50%)",
-    width: 24,
-    height: 24,
-    borderRadius: "50%",
+  sectionLabel: {
+    fontFamily: "var(--font-mono)",
+    fontSize: 10,
+    letterSpacing: "0.12em",
+    color: "var(--text-muted)",
+    marginBottom: 4,
+  },
+
+  /* Agent card */
+  agentCard: {
+    border: "1px solid var(--border-mid)",
+    background: "var(--bg-surface)",
+    padding: "16px 18px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+    position: "relative",
+    overflow: "hidden",
+    transition: "border-color 0.2s, box-shadow 0.2s",
+  },
+  cardTopRow: {
     display: "flex",
     alignItems: "center",
-    justifyContent: "center",
+    gap: 10,
+  },
+  cardNum: {
+    fontFamily: "var(--font-mono)",
     fontSize: 11,
-    fontWeight: 700,
-    color: "#fff",
-    border: "2px solid #0f0f1a",
-    transition: "background 0.4s",
+    letterSpacing: "0.06em",
+    minWidth: 22,
   },
   cardIcon: {
-    fontSize: 32,
-    marginTop: 8,
+    display: "flex",
+    alignItems: "center",
+    flex: 1,
+    transition: "opacity 0.3s, color 0.3s",
+  },
+  cardBody: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
   },
   cardLabel: {
+    fontFamily: "var(--font-heading)",
     fontSize: 15,
     fontWeight: 700,
-    color: "#e2e8f0",
+    letterSpacing: "-0.02em",
+    color: "var(--text-primary)",
   },
   cardDesc: {
     fontSize: 12,
-    color: "#475569",
-    lineHeight: 1.5,
+    color: "var(--text-muted)",
+    lineHeight: 1.55,
   },
-  statusChip: {
-    marginTop: 8,
-    padding: "4px 12px",
-    borderRadius: 20,
-    fontSize: 12,
-    fontWeight: 600,
+  pill: {
+    fontFamily: "var(--font-mono)",
+    fontSize: 9,
+    letterSpacing: "0.1em",
+    padding: "3px 8px",
+    border: "1px solid",
     display: "flex",
     alignItems: "center",
-    transition: "all 0.4s",
+    whiteSpace: "nowrap",
   },
-  terminal: {
-    background: "#090d14",
-    border: "1px solid rgba(255,255,255,0.08)",
-    borderRadius: 16,
+  runBar: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 2,
+    background: "var(--accent)",
+    transformOrigin: "left",
+  },
+  doneBar: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 2,
+    background: "var(--success)",
+  },
+
+  /* Right column */
+  rightCol: {
+    display: "flex",
+    flexDirection: "column",
     overflow: "hidden",
   },
-  terminalHeader: {
-    display: "flex",
-    alignItems: "center",
-    gap: 6,
-    padding: "10px 16px",
-    borderBottom: "1px solid rgba(255,255,255,0.06)",
-    background: "rgba(255,255,255,0.03)",
+
+  /* Metrics */
+  metricsRow: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, 1fr)",
+    borderBottom: "1px solid var(--border)",
+    flexShrink: 0,
   },
-  terminalDot: (color) => ({
-    display: "inline-block",
-    width: 10,
-    height: 10,
-    borderRadius: "50%",
-    background: color,
-  }),
-  terminalTitle: {
-    marginLeft: 8,
-    fontSize: 12,
-    fontWeight: 600,
-    color: "#64748b",
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    flex: 1,
-  },
-  logCount: {
-    fontSize: 11,
-    color: "#334155",
-    fontFamily: "monospace",
-  },
-  terminalBody: {
-    padding: "14px 16px",
-    height: 280,
-    overflowY: "auto",
-    fontFamily: "'JetBrains Mono', 'Fira Code', 'Courier New', monospace",
-    fontSize: 12,
-    lineHeight: "22px",
+  metricCell: {
+    padding: "20px 24px",
+    borderRight: "1px solid var(--border)",
     display: "flex",
     flexDirection: "column",
     gap: 2,
   },
+  metricValue: {
+    fontFamily: "var(--font-heading)",
+    fontSize: 28,
+    fontWeight: 700,
+    letterSpacing: "-0.04em",
+    lineHeight: 1,
+    transition: "color 0.3s",
+  },
+  metricLabel: {
+    fontFamily: "var(--font-mono)",
+    fontSize: 10,
+    letterSpacing: "0.1em",
+    color: "var(--text-muted)",
+    marginTop: 4,
+  },
+  metricSub: {
+    fontSize: 11,
+    color: "var(--text-muted)",
+  },
+
+  /* Terminal */
+  terminal: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+    background: "var(--bg)",
+  },
+  termHeader: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "10px 18px",
+    borderBottom: "1px solid var(--border)",
+    background: "var(--bg-surface)",
+    flexShrink: 0,
+  },
+  termDots: { display: "flex", gap: 5, marginRight: 4 },
+  dot: { display: "inline-block", width: 9, height: 9, borderRadius: "50%" },
+  termTitle: {
+    fontFamily: "var(--font-mono)",
+    fontSize: 10,
+    letterSpacing: "0.1em",
+    color: "var(--text-muted)",
+    flex: 1,
+  },
+  termCount: {
+    fontFamily: "var(--font-mono)",
+    fontSize: 10,
+    color: "var(--border-light)",
+  },
+  termBody: {
+    padding: "16px 20px",
+    flex: 1,
+    overflowY: "auto",
+    fontFamily: "var(--font-mono)",
+    fontSize: 12,
+    lineHeight: "22px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 1,
+  },
   logLine: {
     display: "flex",
-    gap: 8,
+    gap: 10,
     alignItems: "baseline",
   },
   logTime: {
-    color: "#1e293b",
-    minWidth: 70,
-    fontSize: 11,
+    color: "var(--border-light)",
+    minWidth: 68,
+    fontSize: 10,
+    flexShrink: 0,
   },
   logAgent: {
+    color: "var(--accent)",
     minWidth: 100,
-    fontWeight: 600,
+    fontWeight: 500,
     fontSize: 11,
+    flexShrink: 0,
   },
   cursor: {
-    color: "#6366f1",
-    animation: "blink 1s step-end infinite",
+    color: "var(--accent)",
+    animation: "blink-cursor 1s step-end infinite",
     marginTop: 2,
   },
 };
