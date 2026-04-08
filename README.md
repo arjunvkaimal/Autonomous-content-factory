@@ -37,3 +37,7 @@ Follow these steps to run the application locally:
     npm run dev
     ```
     The console will display the local URL (usually `http://localhost:5173/`). Open this URL in your web browser to view the application.
+
+4. **Live Link**
+[   https://autocontentfactory.netlify.app/
+](url)   
