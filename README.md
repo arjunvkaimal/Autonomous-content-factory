@@ -38,6 +38,5 @@ Follow these steps to run the application locally:
     ```
     The console will display the local URL (usually `http://localhost:5173/`). Open this URL in your web browser to view the application.
 
-4. **Live Link**
-[   https://autocontentfactory.netlify.app/
-](url)   
+## 🔗 Links
+[![Live Demo](https://img.shields.io/badge/demo-online-green.svg)](https://autocontentfactory.netlify.app/)
