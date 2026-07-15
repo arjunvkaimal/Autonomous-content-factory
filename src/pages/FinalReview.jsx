@@ -39,7 +39,7 @@ function downloadAll(final) {
     .map((s) => `${divider}\n${s.title}\n${divider}\n\n${s.content}`)
     .join("\n\n\n");
 
-  downloadFile("acf-all-outputs.txt", combined);
+  downloadFile("omniscribe-all-outputs.txt", combined);
 }
 
 /* ─── Page ────────────────────────────────────────────────────────────── */
@@ -89,8 +89,7 @@ export default function FinalReview() {
       >
         {/* Wordmark */}
         <div style={S.sidebarTop}>
-          <div style={S.wordmark}>ACF</div>
-          <div style={S.wordmarkSub}>Content Factory</div>
+          <div style={S.wordmark}>OmniScribe</div>
         </div>
 
         {/* Section nav */}

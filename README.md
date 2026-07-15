@@ -1,10 +1,10 @@
-# Autonomous Content Factory
+# OmniScribe
 
 ## The Problem
 Creating multi-channel marketing content, such as blog posts, social media threads, and email teasers, from raw product data is a tedious and time-consuming manual process. It typically involves significant coordination and back-and-forth between researchers, copywriters, and editors to produce high-quality, accurate assets.
 
 ## The Solution
-The Autonomous Content Factory provides a streamlined, automated pipeline for content generation. Users can upload raw product documents, and the system relies on specialized AI agents (Researcher, Copywriter, and Editor) to extract relevant product information autonomously. These agents collaborate to generate, refine, and format tailored marketing copy. The application features a dynamic UI to track the working state of the AI agents and allows users to easily download the final approved marketing assets.
+OmniScribe provides a streamlined, automated pipeline for content generation. Users can upload raw product documents, and the system relies on specialized AI agents (Researcher, Copywriter, and Editor) to extract relevant product information autonomously. These agents collaborate to generate, refine, and format tailored marketing copy. The application features a dynamic UI to track the working state of the AI agents and allows users to easily download the final approved marketing assets.
 
 ## Tech Stack
 *   **Programming Languages:** JavaScript, HTML, CSS

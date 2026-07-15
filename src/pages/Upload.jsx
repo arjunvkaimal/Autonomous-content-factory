@@ -61,9 +61,7 @@ export default function Upload() {
         </div>
 
         <h1 style={S.headline}>
-          Autonomous<br />
-          <span style={S.accentWord}>Content</span><br />
-          Factory.
+          OmniScribe
         </h1>
 
         <p style={S.body}>
