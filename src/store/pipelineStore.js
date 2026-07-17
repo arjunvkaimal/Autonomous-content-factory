@@ -6,11 +6,13 @@ const useStore = create((set, get) => ({
   factSheet: null,
   drafts: null,
   final: null,
+  tone: "professional",
 
   setSourceText: (text) => set({ sourceText: text }),
   setFactSheet: (data) => set({ factSheet: data }),
   setDrafts: (data) => set({ drafts: data }),
   setFinal: (data) => set({ final: data }),
+  setTone: (tone) => set({ tone }),
 
   // ── Live pipeline state ────────────────────────────────────────────────
   pipelineStatus: "idle", // 'idle' | 'running' | 'done' | 'error'

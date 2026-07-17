@@ -15,6 +15,8 @@ const PIPELINE_STEPS = [
 export default function Upload() {
   const setSourceText = useStore((s) => s.setSourceText);
   const sourceText = useStore((s) => s.sourceText);
+  const tone = useStore((s) => s.tone);
+  const setTone = useStore((s) => s.setTone);
   const navigate = useNavigate();
   const [fileName, setFileName] = useState(null);
   const [error, setError] = useState(null);
@@ -186,6 +188,22 @@ export default function Upload() {
               </motion.p>
             )}
           </AnimatePresence>
+
+          {/* Tone selector */}
+          <div style={S.toneRow}>
+            <label htmlFor="tone-select" style={S.toneLabel}>CONTENT TONE</label>
+            <select
+              id="tone-select"
+              value={tone}
+              onChange={(e) => setTone(e.target.value)}
+              style={S.toneSelect}
+            >
+              <option value="professional">Professional</option>
+              <option value="playful">Playful</option>
+              <option value="technical">Technical</option>
+              <option value="casual">Casual</option>
+            </select>
+          </div>
 
           {/* CTA */}
           <motion.button
@@ -458,5 +476,33 @@ const S = {
     color: "var(--text-muted)",
     textAlign: "center",
     lineHeight: 1.6,
+  },
+
+  toneRow: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+  },
+  toneLabel: {
+    fontFamily: "var(--font-mono)",
+    fontSize: 10,
+    letterSpacing: "0.1em",
+    color: "var(--text-muted)",
+  },
+  toneSelect: {
+    width: "100%",
+    padding: "10px 14px",
+    background: "var(--bg-elevated)",
+    border: "1px solid var(--border-mid)",
+    color: "var(--text-primary)",
+    fontFamily: "var(--font-mono)",
+    fontSize: 13,
+    cursor: "pointer",
+    outline: "none",
+    appearance: "none",
+    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
+    backgroundRepeat: "no-repeat",
+    backgroundPosition: "right 14px center",
+    paddingRight: 36,
   },
 };

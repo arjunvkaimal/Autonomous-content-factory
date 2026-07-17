@@ -136,14 +136,31 @@ ${sourceText}`,
 }
 
 export async function generateContent(prompt, model = "gemini-2.0-flash-lite") {
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+  const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+
+  // Issue 1: mirror the AbortController + 12 000 ms timeout from runGemini()
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+  let response;
+  try {
+    response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+      }
+    );
+  } catch (err) {
+    if (err.name === "AbortError") {
+      throw new Error("Gemini request timed out");
     }
-  );
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!response.ok) {
     const err = await response.json();
@@ -151,5 +168,12 @@ export async function generateContent(prompt, model = "gemini-2.0-flash-lite") {
   }
 
   const data = await response.json();
-  return data.candidates[0].content.parts[0].text;
+
+  // Issue 4: guard against empty / safety-filtered candidates before accessing .text
+  const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  if (!raw) {
+    throw new Error("Empty response from Gemini");
+  }
+
+  return raw;
 }
